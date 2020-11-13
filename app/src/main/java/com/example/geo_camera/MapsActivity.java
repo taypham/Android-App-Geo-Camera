@@ -12,7 +12,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.location.Address;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
@@ -30,6 +29,7 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnSuccessListener;
 
@@ -47,30 +47,35 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Button myLocationButton;
     private Button myCameraBtn;
     private FusedLocationProviderClient mFusedLocationClient;
+    private Button backToMaps;
 
     static final int REQUEST_TAKE_PHOTO = 1;
     String currentPhotoPath;
     ImageView myImageView;
+    Bitmap bm;
+    private Marker m;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main_activity);
 
+
         myLocationButton = (Button) findViewById(R.id.btnGetLocation);
         myCameraBtn = (Button) findViewById(R.id.btnCamera);
         myLocationButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-               // getLocationAndLog();
+               getLocationAndLog();
             }
         });
+
+        myImageView = findViewById(R.id.ivMyImageView);
         myCameraBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-
-                dispatchTakePictureIntent();
                 getLocationAndLog();
+                dispatchTakePictureIntent();
 
             }
         });
@@ -92,6 +97,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onResume() {
         super.onResume();
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
+
     }
 
     private void getLocationAndLog() {
@@ -106,14 +113,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     if (location != null) {
                         Log.d("MapsActivity", "" + location.getLatitude() + ":" + location.getLongitude());
                         //Test Marker
-                        LatLng current = new LatLng(location.getLatitude(),location.getLongitude());
-                        mMap.addMarker(new MarkerOptions().position(current).title("Marker in Current"));
-                        mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
                     }
                 }
             });
         }
     }
+
     /**
      * Enables the My Location layer if the fine location permission has been granted.
      */
@@ -145,25 +150,85 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if (googleMap != null) {
             mMap = googleMap;
             enableMyLocation();
-//            // Add a marker in Sydney and move the camera
-          // LatLng sydney = new LatLng(-34, 151);
+
+            mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
+                @Override public boolean onMarkerClick(Marker marker) {
+                    //  Take some action here
+                    //myImageView.setImageBitmap((Bitmap)(marker.getTag()));
+                    File imgFile = new  File((String) marker.getTag());
+
+                    if(imgFile.exists()){
+
+                        Bitmap myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
+
+                        ImageView myImage = (ImageView) findViewById(R.id.ivMyImageView);
+
+                        myImage.setImageBitmap(myBitmap);
+                        myImage.bringToFront();
+                        myImage.setAlpha(255);
+                    }
+                    myLocationButton.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            myImageView.setBackgroundResource(0);
+                            myImageView.setAlpha(0);
+
+                        }
+                    });
+
+
+                    return false;
+                }
+
+            }
+            );
+
+
+//          // Add a marker in Sydney and move the camera
+            // LatLng sydney = new LatLng(-34, 151);
 
             //LatLng current = new LatLng(location.getLatitude(),location.getLongitude());
 
-           // mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-           // mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
+            // mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
+            // mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
         }
     }
+
 
     //
     //
     // Camera Api Function
     //
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data){
-        super.onActivityResult(requestCode,resultCode,data);
-        if(requestCode == REQUEST_TAKE_PHOTO && resultCode == RESULT_OK){
-            //setPic();
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_TAKE_PHOTO && resultCode == RESULT_OK) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                // TODO: Consider calling
+                //    ActivityCompat#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for ActivityCompat#requestPermissions for more details.
+                return;
+            }
+            mFusedLocationClient.getLastLocation()
+                    .addOnSuccessListener(this, new OnSuccessListener<Location>() {
+                        @Override
+                        public void onSuccess(Location location) {
+                            // Got last known location. In some rare situations this can be null.
+                            if (location != null) {
+                                // Logic to handle location object
+                                LatLng current = new LatLng(location.getLatitude(),location.getLongitude());
+                                m = mMap.addMarker(new MarkerOptions().position(current).title("Picture Taken here"));
+                                mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
+                                m.setTag(currentPhotoPath);
+                                //setPic(location.getLatitude()+", "+location.getLongitude());
+                            }
+                        }
+                    });
+
         }
     }
 
@@ -207,7 +272,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
-    private void setPic() {
+    private void setPic(String l) {
         // Get the dimensions of the View
         int targetW = myImageView.getWidth();
         int targetH = myImageView.getHeight();
@@ -231,14 +296,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         Bitmap bitmap = BitmapFactory.decodeFile(currentPhotoPath, bmOptions);
         myImageView.setImageBitmap(bitmap);
+
     }
-    private void galleryAddPic() {
-        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        File f = new File(currentPhotoPath);
-        Uri contentUri = Uri.fromFile(f);
-        mediaScanIntent.setData(contentUri);
-        this.sendBroadcast(mediaScanIntent);
-    }
+
+
+
 
 
 }
